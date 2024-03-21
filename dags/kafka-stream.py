@@ -13,7 +13,7 @@ def get_data():
 
     response = requests.get('https://randomuser.me/api/')
     response = response.json()['results'][0]
-    
+
     return response
 
 def format_data(response):
@@ -40,16 +40,33 @@ def stream_data():
     import json
     from kafka import KafkaProducer
     import time
+    import logging
 
-    response = get_data()
-    response = format_data(response)
-    # print(json.dumps(response, indent=4))
+    #! for running on localhost
+    # producer = KafkaProducer(bootstrap_servers=['localhost:9092'], max_block_ms=5000)
+    #! for running on docker
+    producer = KafkaProducer(bootstrap_servers=['broker:29092'], max_block_ms=5000)
 
-    producer = KafkaProducer(bootstrap_servers=['localhost:9092'], max_block_ms=5000)
-    producer.send('users_created', json.dumps(response).encode('utf-8'))
+    time_start = time.time()
+
+    while True:
+        one_minute = 60
+        if time.time() > time_start + one_minute:
+            break
+
+        try:
+            response = get_data()
+            response = format_data(response)
+            print(json.dumps(response, indent=4))
+
+            producer.send('users_created', json.dumps(response).encode('utf-8'))
+
+        except Exception as e:
+            logging.error(f'Error occurred: {e}')
+            continue
 
 with DAG(
-        'user_automation',
+        'randomuser_streaming',
         default_args=default_args,
         schedule='@daily',
         catchup=False
